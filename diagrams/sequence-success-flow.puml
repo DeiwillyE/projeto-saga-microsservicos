@@ -1,0 +1,30 @@
+@startuml
+ title Saga — fluxo de sucesso (orquestração)
+ actor Cliente
+ participant "Order Service" as Order
+ participant "Saga Orchestrator" as Saga
+ queue "Message Broker" as Broker
+ participant "Inventory Service" as Inventory
+ participant "Payment Service" as Payment
+ participant "Gateway financeiro" as Gateway
+
+ Cliente -> Order: Criar pedido
+ Order -> Order: Persistir PENDING + Outbox
+ Order -> Broker: OrderCreated
+ Broker -> Saga: OrderCreated
+ Saga -> Broker: ReserveStock(sagaId)
+ Broker -> Inventory: ReserveStock
+ Inventory -> Inventory: Reservar estoque (idempotente)
+ Inventory -> Broker: StockReserved
+ Broker -> Saga: StockReserved
+ Saga -> Broker: ProcessPayment(idempotencyKey)
+ Broker -> Payment: ProcessPayment
+ Payment -> Gateway: Autorizar/capturar pagamento
+ Gateway --> Payment: Pagamento aprovado
+ Payment -> Broker: PaymentSucceeded
+ Broker -> Saga: PaymentSucceeded
+ Saga -> Order: ConfirmOrder
+ Order -> Order: Atualizar CONFIRMED + Outbox
+ Order --> Saga: OrderConfirmed
+ Saga -> Saga: Marcar Saga COMPLETED
+ @enduml

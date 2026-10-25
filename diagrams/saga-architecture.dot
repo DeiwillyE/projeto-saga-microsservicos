@@ -1,0 +1,26 @@
+digraph SagaArchitecture {
+  graph [rankdir=LR, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.7", label="Arquitetura Saga — Fluxo de compra", labelloc=t, fontsize=20, fontname="Arial"];
+  node [shape=box, style="rounded,filled", fillcolor="#eef4ff", color="#4775b8", fontname="Arial", fontsize=10, margin="0.16,0.1"];
+  edge [fontname="Arial", fontsize=9, color="#455468", arrowsize=0.8];
+  Client [label="Cliente / API"];
+  Order [label="Order Service\nDB de pedidos"];
+  Outbox [label="Transactional Outbox\n+ Relay"];
+  Broker [label="Broker de mensagens"];
+  Orch [label="Saga Orchestrator\nEstado persistido"];
+  Inventory [label="Inventory Service\nDB de estoque"];
+  Payment [label="Payment Service\nDB de pagamentos"];
+  Gateway [label="Gateway financeiro externo"];
+  DLQ [label="Dead-letter queue\n+ alertas", fillcolor="#fff2df", color="#c78a32"];
+  Client -> Order [label="Criar pedido"];
+  Order -> Outbox [label="mesma transação local"];
+  Outbox -> Broker [label="publicação assíncrona"];
+  Broker -> Orch [label="OrderCreated / respostas"];
+  Orch -> Broker [label="comandos"];
+  Broker -> Inventory [label="Reserve / ReleaseStock"];
+  Inventory -> Broker [label="StockReserved / StockReleased"];
+  Broker -> Payment [label="ProcessPayment"];
+  Payment -> Gateway [label="API + chave idempotente"];
+  Payment -> Broker [label="PaymentSucceeded / Failed"];
+  Broker -> DLQ [label="tentativas esgotadas", style=dashed, color="#c78a32"];
+  Orch -> Order [label="ConfirmOrder / RejectOrder", style=dashed];
+}

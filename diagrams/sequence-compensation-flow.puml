@@ -1,0 +1,40 @@
+@startuml
+ title Saga — falha de pagamento e compensação
+ actor Cliente
+ participant "Order Service" as Order
+ participant "Saga Orchestrator" as Saga
+ queue "Message Broker" as Broker
+ participant "Inventory Service" as Inventory
+ participant "Payment Service" as Payment
+ participant "Gateway financeiro" as Gateway
+
+ Cliente -> Order: Criar pedido
+ Order -> Order: Persistir PENDING + Outbox
+ Order -> Broker: OrderCreated
+ Broker -> Saga: OrderCreated
+ Saga -> Broker: ReserveStock(sagaId)
+ Broker -> Inventory: ReserveStock
+ Inventory -> Inventory: Reservar estoque
+ Inventory -> Broker: StockReserved
+ Broker -> Saga: StockReserved
+ Saga -> Broker: ProcessPayment(idempotencyKey)
+ Broker -> Payment: ProcessPayment
+ Payment -> Gateway: Processar pagamento
+ Gateway --> Payment: Recusa / falha definitiva
+ Payment -> Broker: PaymentFailed
+ Broker -> Saga: PaymentFailed
+ Saga -> Saga: Estado COMPENSATING
+ Saga -> Broker: ReleaseStock(sagaId)
+ Broker -> Inventory: ReleaseStock
+ Inventory -> Inventory: Liberar reserva (idempotente)
+ Inventory -> Broker: StockReleased
+ Broker -> Saga: StockReleased
+ Saga -> Order: RejectOrder
+ Order -> Order: Atualizar REJECTED + Outbox
+ Order --> Saga: OrderRejected
+ Saga -> Saga: Marcar Saga FAILED
+ note over Saga,Inventory
+ Se a compensação falhar, manter a Saga recuperável,
+ repetir com limite e alertar para intervenção manual.
+ end note
+ @enduml
